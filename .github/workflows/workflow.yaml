@@ -1,0 +1,26 @@
+name: Python Application
+
+on: [push]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.8
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requirements.txt
+      - name: Execute tests
+        run: |
+          pip install pytest coverage
+          coverage run -m py.test
+          coverage xml
+          #- uses: codecov/codecov-action@v1
+          #  with:
+          #    token: fea4705c-9b79-49f7-92d6-2d12d25cac15
+          #    verbose: True
