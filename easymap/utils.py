@@ -19,6 +19,10 @@ def get_entropy(frequencies, temperature, use_quantum=True, remove_zero=True):
     temperature : float [kelvin]
         temperature at which to compute the entropy
 
+    remove_zero : bool
+        whether or not to discard near-zero frequencies when computing the
+        entropy
+
     use_quantum : bool
         determines whether to use the quantum mechanical or classical treatment;
         for classical oscillators, the entropy becomes negative at large
@@ -33,7 +37,7 @@ def get_entropy(frequencies, temperature, use_quantum=True, remove_zero=True):
     h = ase.units._hplanck # in J s
     k = ase.units._k # in J / K
     beta = 1 / (k * temperature)
-    thetas = beta * h * frequencies_si
+    thetas = beta * h * frequencies_si # dimensionless quantity
     if use_quantum:
         q_quantum = np.exp(- thetas / 2) / (1 - np.exp(- thetas))
         f_quantum = - np.log(q_quantum) / beta

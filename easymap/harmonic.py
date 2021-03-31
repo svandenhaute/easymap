@@ -29,6 +29,8 @@ class Harmonic:
         self.frequencies = None
         self.modes = None
 
+        self.similarities = None
+
     def compute_eigenmodes(self):
         """Computes and stores the eigenmodes of the system
 
@@ -41,3 +43,25 @@ class Harmonic:
         hessian_mw = mass_matrix * self.hessian
         self.frequencies, self.modes = np.linalg.eigh(hessian_mw)
         return self.frequencies, self.modes
+
+    def add_similarities(self, similarities):
+        """Adds similarity relations to atoms in the system
+
+        Two or more atoms may be defined as similar in order to enforce
+        subsequent dimensionality reduction procedures to treat them in
+        exactly the same manner. More specific, if atom a and atom b are
+        similar, then they must be clustered in exactly the same manner (i.e.
+        they must belong to the same cluster type).
+
+        Parameters
+        ----------
+
+        similarities : 2darray of shape (natom, natom)
+            integer array (with values 0 or 1) that defines how atoms are
+            partitioned into similarity classes. Atom j is contained in
+            similarity class j iff similarities[i, j] == 1. If the identity
+            matrix is given, then all atoms belong to their own similarity
+            class (i.e. no two atoms are similar).
+
+        """
+        pass
