@@ -59,7 +59,7 @@ class Harmonic:
         similarities : 2darray of shape (natom, natom)
             integer array (with values 0 or 1) that defines how atoms are
             partitioned into similarity classes. Atom j is contained in
-            similarity class j iff similarities[i, j] == 1. If the identity
+            similarity class i iff similarities[i, j] == 1. If the identity
             matrix is given, then all atoms belong to their own similarity
             class (i.e. no two atoms are similar).
 
