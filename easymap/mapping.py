@@ -2,6 +2,7 @@ import numpy as np
 
 from easymap.utils import apply_mic, determine_rcut
 
+
 class Mapping:
     """Class to represent a center-of-mass mapping of atoms into clusters"""
 
@@ -29,7 +30,7 @@ class Mapping:
         """Computes cluster centers of mass
 
         For periodic systems, clusters are not allowed to contain relative
-        vectors which are longer than half of the smalles diagonal box vector
+        vectors which are longer than half of the smallest diagonal box vector
         component (in its reduced representation). A ValueError is raised if
         this is the case.
 
@@ -60,10 +61,10 @@ class Mapping:
         Parameters
         ----------
 
-        clusters : 2darray of shape (natom, natom)
-            integer array (with values 0 or 1) that defines how atoms are
+        clusters : 2darray of shape (natoms, natoms)
+            integer array (i.e. with values 0 or 1) that defines how atoms are
             partitioned into clusters or beads. Atom j is contained in
-            bead i iff similarities[i, j] == 1. The dtype is expected to be
+            bead i iff clusters[i, j] == 1. The dtype is expected to be
             np.int32.
 
         """
