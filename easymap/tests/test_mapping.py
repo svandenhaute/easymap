@@ -73,3 +73,49 @@ def test_manual_computation_nonperiodic():
 
     positions_com_ = mapping.apply(positions + 2.3)
     assert np.allclose(positions_com, positions_com_ - 2.3)
+
+
+def test_equivalency_toy():
+    natoms = 10
+    masses = np.ones(natoms)
+    equivalency = np.eye(natoms, dtype=np.int32)
+    mapping = Mapping(masses, equivalency=equivalency)
+    assert len(mapping.atom_types) == natoms
+
+    equivalency[0, 1] = 1
+    with pytest.raises(AssertionError):
+        mapping = Mapping(masses, equivalency=equivalency)
+    equivalency[0, 1] = 0
+
+    equivalency[natoms - 1, natoms - 1] = 0
+    equivalency[natoms - 2, natoms - 1] = 1
+    mapping = Mapping(masses, equivalency)
+    assert np.max(mapping.atom_types) == natoms - 2
+
+
+def test_identities():
+    natoms = 4
+    masses = np.ones(natoms)
+    equivalency = np.array([
+        [1, 1, 0, 0],
+        [0, 0, 1, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        ], dtype=np.int32)
+    clusters = np.array([
+        [1, 0, 1, 0],
+        [0, 1, 0, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        ], dtype=np.int32)
+    mapping = Mapping(masses, equivalency)
+
+    clusters = np.array([
+        [1, 0, 0, 0],
+        [0, 1, 1, 1],
+        [0, 0, 0, 0],
+        [0, 0, 0, 0],
+        ], dtype=np.int32)
+    mapping.update_clusters(clusters)
+    with pytest.raises(AssertionError):
+        mapping.update_identities(validate=True)
