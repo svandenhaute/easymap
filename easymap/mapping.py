@@ -74,7 +74,7 @@ class Mapping:
         """
         dvecs = self.deltas @ positions
         if rvecs is not None: # apply mic to dvecs
-            mic(dvecs, rvecs)
+            apply_mic(dvecs, rvecs)
             rcut = determine_rcut(rvecs)
             assert np.all(np.linalg.norm(dvecs, axis=1) < rcut)
         positions_com = np.zeros((self.nclusters, 3))
@@ -166,6 +166,29 @@ class Mapping:
                 count += 1
         else:
             self.atom_types = np.arange(self.natoms, dtype=np.int32)
+
+    @staticmethod
+    def merge(clusters, groups):
+        """Merges groups of clusters
+
+        Parameters
+        ----------
+
+        clusters : 2darray of shape (natoms, natoms)
+            integer array (i.e. with values 0 or 1) that defines how atoms are
+            partitioned into clusters or beads.
+
+        groups : list of tuples
+            list of tuples. Each tuple contains the cluster indices that should
+            be merged into a single cluster.
+
+        """
+        merger = np.eye(clusters.shape[1], dtype=np.int32)
+        for group in groups:
+            for index in group[1:]:
+                merger[group[0], index] = 1 # add to first cluster
+                merger[index, index]    = 0 # remove existing
+        return merger @ clusters
 
     def __iter__(self):
         for i in range(self.nclusters):

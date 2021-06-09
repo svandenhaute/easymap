@@ -119,3 +119,16 @@ def test_identities():
     mapping.update_clusters(clusters)
     with pytest.raises(AssertionError):
         mapping.update_identities(validate=True)
+
+
+def test_merge():
+    clusters = np.eye(5, dtype=np.int32)
+    groups = [(0, 1, 2), (3, 4)]
+    clusters_ = np.array([
+        [1, 1, 1, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 1, 1],
+        [0, 0, 0, 0, 0],
+        ], dtype=np.int32)
+    assert np.allclose(clusters_, Mapping.merge(clusters, groups))

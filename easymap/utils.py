@@ -1,7 +1,9 @@
 import numpy as np
 
+from ase import Atoms
 import ase.units
 import ase.geometry
+import ase.neighborlist
 
 
 def get_entropy(frequencies, temperature, use_quantum=True, remove_zero=True):
@@ -208,3 +210,41 @@ def apply_mic(deltas, rvecs):
     cell = ase.geometry.Cell(rvecs)
     mic_vectors, _ = ase.geometry.geometry.find_mic(deltas, rvecs)
     deltas[:] = mic_vectors
+
+
+def compute_distance_matrix(positions, rvecs=None):
+    """Computes distance matrix of a set of particles"""
+    natoms = positions.shape[0]
+    pos = np.copy(positions).reshape(natoms, 3, 1)
+    deltas = pos - pos.T
+    if rvecs is not None:
+        reshaped = np.swapaxes(deltas, 1, 2).reshape((-1, 3))
+        apply_mic(reshaped, rvecs)
+        distances = np.linalg.norm(reshaped, axis=1).reshape((natoms, natoms))
+    else:
+        distances = np.linalg.norm(deltas, axis=1)
+    return distances
+
+
+def get_nlist(positions, rvecs, cutoff):
+    """Constructs ASE neighbor list"""
+    # create dummy Atoms instance
+    natoms = positions.shape[0]
+    if rvecs is not None:
+        cell = ase.geometry.Cell(rvecs)
+    else:
+        cell = None
+    atoms = Atoms(
+            positions=positions,
+            cell=cell,
+            )
+    nlist = ase.neighborlist.NeighborList(
+            cutoff / 2 * np.ones(natoms),
+            sorted=False,
+            bothways=True,
+            skin=0.0,
+            self_interaction=False,
+            primitive=ase.neighborlist.NewPrimitiveNeighborList,
+            )
+    nlist.update(atoms)
+    return nlist
