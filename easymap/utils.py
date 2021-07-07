@@ -11,7 +11,7 @@ def get_entropy(frequencies, temperature, use_quantum=True, remove_zero=True):
 
     Frequencies below 1e-10 ase units are removed by default because these can
     only be related to translational invariance (in case of periodic systems) or
-    translational and rotational invariance ( in case of nonperiodic systems).
+    translational and rotational invariance (in case of nonperiodic systems).
     The remaining frequencies are also returned.
 
     Parameters
@@ -230,14 +230,15 @@ def get_nlist(positions, rvecs, cutoff):
     """Constructs ASE neighbor list"""
     # create dummy Atoms instance
     natoms = positions.shape[0]
-    if rvecs is not None:
-        cell = ase.geometry.Cell(rvecs)
-    else:
-        cell = None
     atoms = Atoms(
             positions=positions,
-            cell=cell,
             )
+    if rvecs is not None:
+        cell = ase.geometry.Cell(rvecs)
+        atoms.set_cell(cell)
+        atoms.set_pbc(True)
+    else:
+        cell = None
     nlist = ase.neighborlist.NeighborList(
             cutoff / 2 * np.ones(natoms),
             sorted=False,
@@ -248,3 +249,24 @@ def get_nlist(positions, rvecs, cutoff):
             )
     nlist.update(atoms)
     return nlist
+
+
+def get_distances(indices, positions, rvecs=None):
+    """Compute distances between particles"""
+    atoms = Atoms(
+            positions=positions,
+            )
+    if rvecs is not None:
+        cell = ase.geometry.Cell(rvecs)
+        atoms.set_cell(cell)
+        atoms.set_pbc(True)
+        mic = True
+    else:
+        cell = None
+        mic = False
+
+    ndist = indices.shape[0]
+    distances = np.zeros(ndist)
+    for i in range(ndist):
+        distances[i] = atoms.get_distance(indices[i, 0], indices[i, 1], mic=mic)
+    return distances

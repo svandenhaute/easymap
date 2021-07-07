@@ -1,3 +1,16 @@
+import logging
+import numpy as np
+
+from easymap.mapping import Mapping
+from easymap.utils import get_nlist, get_distances
+from easymap.environment import ClusterEnvironment, generate_environments
+
+
+logger = logging.getLogger(__name__) # logging per module
+
+
+class EquivalenceViolationException(Exception):
+    pass
 
 
 class Reduction:
@@ -7,7 +20,7 @@ class Reduction:
 
     """
 
-    def __init__(self, groups=None):
+    def __init__(self, groups):
         """Constructor
 
         Parameters
@@ -15,11 +28,19 @@ class Reduction:
 
         groups : list of tuple of ints or None
             list of tuples. Each tuple contains two or more integers that
-            specify indices of clusters that will be combined. No index may
-            appear more than once.
+            specify indices of clusters that will be combined.
 
         """
-        self.groups = groups
+        _past_indices = []
+        count = 0
+        for group in groups:
+            count += len(group)
+            for index in group:
+                if index not in _past_indices:
+                    _past_indices.append(index)
+        if not (len(_past_indices) == count):
+            raise ValueError('groups were not disjunct: {}'.format(groups))
+        self.groups = list(groups)
 
     def __contains__(self, query):
         """Checks whether cluster indices in query are contained in a group
@@ -35,79 +56,102 @@ class Reduction:
             if query[0] in group: # check if *first* index is in group
                 complete = True
                 for index in query: # check if *all* indices are in group
-                    if index not in query:
+                    if index not in group:
                         complete = False
                 return complete
             else: # if not, continue to next group
                 continue
         return False
 
-    def add_group(self, group, merge=False):
-        """Adds group to reduction
-
-        If the current group overlaps with any of the existing groups, the
-        behavior depends on the merge keyword: if True, then both groups are
-        merged into a single group. Otherwise, a ValueError is raised.
+    def apply(self, mapping):
+        """Applies reduction to mapping and merges clusters
 
         Parameters
         ----------
 
-        group : tuple of ints
-            specifies indices of clusters that will be combined
-
-        merge : bool
-            determines merging behavior in case of overlap
+        mapping : easymap.Mapping instance
+            mapping with clusters that will be merged according to self.groups
 
         """
-        pass
+        clusters = mapping.merge(mapping.clusters, self.groups)
+        mapping.update_clusters(clusters)
 
-    def apply(self, mapping):
-        pass
+    def check_equivalence(self, mapping):
+        """Checks whether this reduction preserves equivalencies
+
+        Parameters
+        ----------
+
+        mapping : easymap.Mapping instance
+            mapping which defines the cluster types
+
+        """
+        dummy = mapping.copy()
+        self.apply(dummy)
+        return dummy.update_identities()
+
+    def __eq__(self, reduction):
+        """Checks whether two reductions are equal"""
+        sorted_groups = [tuple(sorted(group)) for group in self.groups]
+        if len(reduction.groups) != len(self.groups):
+            return False
+        for group in reduction.groups:
+            if not tuple(sorted(group)) in sorted_groups:
+                return False
+        return True
 
 
-def generate(mapping, harmonic, epsilon=1e-1, max_size=3):
-    """Generates reduction based on current cluster configuration
+def generate_reductions(mapping, harmonic, cutoff, tol,
+        max_num_equiv_clusters=6):
+    """Generates ``Reduction`` instances based on a mapping and a harmonic
 
-    1.  a neighbor list is generated based on the optimized positions.
-    2.  candidate reductions are created based on proximity of clusters.
+    For each cluster type, group templates are matched to cluster
+    environments in order to generate reductions which preserve equivalency
+    between clusters as present in the current mapping.
 
     Parameters
     ----------
 
-    mapping : easymap.Mapping
-        mapping for which to generate a list of candidates
-
-    harmonic : easymap.Harmonic
-        contains the structure based on which the neighbor list is generated
-
-    epsilon : float
-        distance threshold above which atoms are considered distinguishable
-
-    max_size : int
-        maximum size of individual groups in a candidate.
-
     """
-    rvecs = harmonic.atoms.get_cell()
-    positions = mapping.apply(harmonic.atoms.get_positions(), rvecs)
-    nlist = get_nlist(positions, rvecs, cutoff=cutoff)
+    environments, radii = generate_environments(
+            mapping,
+            harmonic,
+            cutoff,
+            tol,
+            )
+    reductions = []
+    for cluster_type, envs in environments.items():
+        reference = envs[0]
+        templates = reference.generate_templates(
+                max_num_equiv_clusters=max_num_equiv_clusters,
+                )
+        n = len(templates)
+        for env in envs:
+            # verify that envs of the same cluster_type are 'equal'
+            if not reference.equals(env, tol):
+                raise EquivalenceViolationException('')
+            # verify that each env generates the same number of templates
+            n_ = len(env.generate_templates(
+                    max_num_equiv_clusters=max_num_equiv_clusters,
+                    ))
+            if not (n_ == n):
+                raise EquivalenceViolationException('')
 
-    #candidates = [] # stores list of candidate objects
-    #size       = 2  # start with pairs
-    #while size < max_size:
-        # prepare dictionary that maps atom_types to tuples of indices
-
-        #for i in range(natoms):
-        #    neighbors, _ = nlist.get_neighbors(i)
-        #    for j in neighbors:
-        #        # check if pair already present in previous candidates:
-        #        present = False
-        #        count = 0
-        #        while (not present) and (count < len(candidates)):
-        #            present = ((i, j) in candidates[count])
-        #            count += 1
-        #        if not present:
-        #            # generate candidate for pair
-
-        #        else: # ignore
-        #            pass
-    return candidates
+        i = 0
+        while i < len(templates):
+            if len(reference.match_template(templates[i], tol)) > 1:
+                templates.pop(i)
+            else:
+                i += 1
+        for template in templates: # match with every env
+            groups = []
+            for env in envs:
+                matches = env.match_template(template, tol)
+                if not (len(matches) == 1):
+                    raise EquivalenceViolationException('')
+                groups.append(matches[0])
+            try:
+                reductions.append(Reduction(groups))
+            except ValueError: # groups were not disjunct; discard template
+                continue
+    return reductions

@@ -48,7 +48,6 @@ class Mapping:
         self.transform = None
         self.update_clusters(np.eye(len(masses), dtype=np.int32))
 
-        #self.equivalency = equivalency
         self.atom_types    = None
         self.cluster_types = None
         self.infer_atom_types(equivalency)
@@ -116,6 +115,9 @@ class Mapping:
     def update_identities(self, validate=True):
         """Derives cluster identities based on atom equivalencies
 
+        A boolean is returned which specifies whether the current clustering
+        preserves the equivalence of atoms.
+
         Parameters
         ----------
 
@@ -131,15 +133,16 @@ class Mapping:
             key = tuple(np.sort(types))
             self.cluster_types[i] = key
 
-        if validate:
-            atom_type_to_cluster_type = {}
-            for i in range(self.natoms):
-                index = np.where(self.clusters[:, i] == 1)[0][0]
-                atom_type = self.atom_types[i]
-                if atom_type in atom_type_to_cluster_type.keys():
-                    assert self.cluster_types[index] == atom_type_to_cluster_type[atom_type]
-                else:
-                    atom_type_to_cluster_type[atom_type] = self.cluster_types[index]
+        equiv = True # whether equivalence is satisfied
+        atom_type_to_cluster_type = {}
+        for i in range(self.natoms):
+            index = np.where(self.clusters[:, i] == 1)[0][0]
+            atom_type = self.atom_types[i]
+            if atom_type in atom_type_to_cluster_type.keys():
+                equiv = equiv and (self.cluster_types[index] == atom_type_to_cluster_type[atom_type])
+            else:
+                atom_type_to_cluster_type[atom_type] = self.cluster_types[index]
+        return equiv
 
     def infer_atom_types(self, equivalency):
         """Defines atom types based on an equivalency matrix
@@ -188,8 +191,23 @@ class Mapping:
             for index in group[1:]:
                 merger[group[0], index] = 1 # add to first cluster
                 merger[index, index]    = 0 # remove existing
-        return merger @ clusters
+        new_clusters = merger @ clusters
+        # sort clusters such that zero rows are at the bottom of the array
+        indices = np.argsort(np.sum(new_clusters, axis=1))
+        return new_clusters[indices[::-1]]
 
     def __iter__(self):
         for i in range(self.nclusters):
             yield np.where(self.clusters[i, :] == 1)[0]
+
+    def copy(self):
+        """Copies current instance"""
+        mapping = Mapping(self.masses)
+        mapping.update_clusters(self.clusters)
+        mapping.atom_types = self.atom_types.copy()
+        mapping.update_identities(validate=True)
+        return mapping
+
+
+def score(reductions, mapping, harmonic):
+    """Scores a list of reductions based on a mapping and a harmonic"""

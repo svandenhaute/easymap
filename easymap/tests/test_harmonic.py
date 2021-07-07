@@ -8,13 +8,13 @@ from systems import get_harmonic
 
 def test_init():
     name = 'uio66_ff'
-    harmonic = get_harmonic(name)
+    harmonic, _ = get_harmonic(name)
     assert harmonic.periodic
 
 
 def test_frequencies():
     name = 'uio66_ff'
-    harmonic = get_harmonic(name)
+    harmonic, _ = get_harmonic(name)
     values, _ = harmonic.compute_eigenmodes()
     frequencies = np.sqrt(values) / (2 * np.pi)
     entropy, _ = get_entropy(frequencies, 300)

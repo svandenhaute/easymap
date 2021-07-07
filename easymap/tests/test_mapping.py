@@ -117,8 +117,7 @@ def test_identities():
         [0, 0, 0, 0],
         ], dtype=np.int32)
     mapping.update_clusters(clusters)
-    with pytest.raises(AssertionError):
-        mapping.update_identities(validate=True)
+    assert not mapping.update_identities()
 
 
 def test_merge():
@@ -126,9 +125,9 @@ def test_merge():
     groups = [(0, 1, 2), (3, 4)]
     clusters_ = np.array([
         [1, 1, 1, 0, 0],
-        [0, 0, 0, 0, 0],
-        [0, 0, 0, 0, 0],
         [0, 0, 0, 1, 1],
+        [0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0],
         [0, 0, 0, 0, 0],
         ], dtype=np.int32)
     assert np.allclose(clusters_, Mapping.merge(clusters, groups))
