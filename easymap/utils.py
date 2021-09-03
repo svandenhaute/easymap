@@ -34,7 +34,7 @@ def get_entropy(frequencies, temperature, use_quantum=True, remove_zero=True):
 
     """
     if remove_zero:
-        mask = np.where(frequencies > 1e-5)[0]
+        mask = frequencies > 1e-5
         frequencies = frequencies[mask]
     entropy = np.zeros(frequencies.shape)
     frequencies_si = frequencies * ase.units.s # in s
@@ -270,3 +270,20 @@ def get_distances(indices, positions, rvecs=None):
     for i in range(ndist):
         distances[i] = atoms.get_distance(indices[i, 0], indices[i, 1], mic=mic)
     return distances
+
+
+def expand_xyz(m):
+    """Expands an m-by-n matrix into a 3m-by-3n matrix
+
+    The original matrix is repeated on the diagonals of a 3-by-3 block matrix.
+    Next, its rows and columns are interleaved.
+
+    """
+    N = m.shape[0]
+    n = m.shape[1]
+    block = np.kron(np.eye(3), m)
+    indices_n = np.arange(3 * n).reshape(3, n).T.flatten()
+    indices_N = np.arange(3 * N).reshape(3, N).T.flatten()
+    permute_rows = block[indices_N, :]
+    total = permute_rows[:, indices_n]
+    return total

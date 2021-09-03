@@ -95,6 +95,7 @@ def test_apply():
     assert not reduction.check_equivalence(mapping)
 
 
+@pytest.mark.skip
 def test_uio():
     harmonic, equivalencies = get_harmonic('uio66_ff')
     mapping = Mapping(harmonic.atoms.get_masses(), equivalencies)
@@ -152,3 +153,5 @@ def test_uio():
             max_num_equiv_clusters=6,
             )
     assert len(reductions) == 27
+
+

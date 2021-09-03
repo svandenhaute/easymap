@@ -195,6 +195,7 @@ def generate_environments(mapping, harmonic, cutoff, tol=1e-1):
 
 
     """
+    logger.debug('\tgenerating neighbor list')
     cell = harmonic.atoms.get_cell()
     if np.allclose(cell.lengths(), np.zeros(3)):
         rvecs = None
@@ -213,6 +214,7 @@ def generate_environments(mapping, harmonic, cutoff, tol=1e-1):
     environments = {} # environments per cluster_type
     radii = {} # determined environment radii per cluster_type
     for cluster_type, cluster_indices in table.items():
+        logger.debug('\tbuilding environments for cluster type {}'.format(cluster_type))
         environments[cluster_type] = []
         indices_distances = []
         for i in cluster_indices: # parse nlist for every cluster
@@ -234,6 +236,7 @@ def generate_environments(mapping, harmonic, cutoff, tol=1e-1):
             while np.min(np.abs(_all_distances - radius)) < 2 * tol:
                 radius -= 0.1 * tol
         radii[cluster_type] = radius
+        logger.debug('\tdetermined safe radius at {} angstrom'.format(radius))
         for i, indices, distances in indices_distances:
             within_radius = indices[np.where(distances < radius)[0]].astype(np.int32)
             within_radius_all = np.concatenate((

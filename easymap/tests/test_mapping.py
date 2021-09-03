@@ -1,7 +1,10 @@
 import pytest
 import numpy as np
 
-from easymap import Mapping
+from easymap.mapping import Mapping, score
+from easymap.reduction import generate_reductions
+
+from systems import get_harmonic
 
 
 def test_project_toy():
@@ -131,3 +134,58 @@ def test_merge():
         [0, 0, 0, 0, 0],
         ], dtype=np.int32)
     assert np.allclose(clusters_, Mapping.merge(clusters, groups))
+
+
+def test_write_load(tmp_path):
+    harmonic, equivalencies = get_harmonic('uio66_ff')
+    mapping = Mapping(harmonic.atoms.get_masses(), equivalencies)
+
+    clusters = Mapping.merge(
+            mapping.clusters,
+            [(0, 1, 2, 5), (4, 8, 33, 6, 100)],
+            )
+    mapping.update_clusters(clusters)
+    mapping.update_identities(validate=True)
+
+    path_npz = tmp_path / 'mapping.npz'
+    mapping.write(path_npz)
+    loaded = Mapping.load(path_npz)
+    assert np.allclose(loaded.masses, mapping.masses)
+    for i in range(mapping.natoms):
+        assert loaded.atom_types[i] == mapping.atom_types[i]
+    assert np.allclose(loaded.clusters, mapping.clusters)
+
+
+def test_score_uio():
+    harmonic, equivalencies = get_harmonic('uio66_ff')
+    mapping = Mapping(harmonic.atoms.get_masses(), equivalencies)
+
+    # contains reference values on the number of reductions as a function of
+    # the maximum number of equivalent clusters to be considered
+    cutoff = 4
+    tol = 1e-1
+    reductions = generate_reductions(
+            mapping,
+            harmonic,
+            cutoff=cutoff,
+            tol=tol,
+            max_num_equiv_clusters=6,
+            )
+    reduction = reductions[0]
+    reduction.apply(mapping)
+    masses = np.repeat(harmonic.atoms.get_masses(), 3)
+    mass_matrix = 1 / np.sqrt(np.outer(masses, masses))
+    hessian_mw = mass_matrix * harmonic.hessian
+
+    smap  = score(mapping, hessian_mw=hessian_mw, temperature=300)
+    smap_ = score(mapping, harmonic=harmonic, temperature=300)
+    assert smap == smap_
+    assert smap > 0
+
+    # construct mapping that groups all atoms into same bead
+    clusters = np.zeros((mapping.natoms, mapping.natoms), dtype=np.int32)
+    clusters[0, :] = 1
+    mapping.update_clusters(clusters)
+    mapping.update_identities()
+    entropy = score(mapping, harmonic=harmonic, temperature=300)
+    print(entropy)

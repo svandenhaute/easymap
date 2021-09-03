@@ -1,6 +1,6 @@
 import numpy as np
 
-from easymap.utils import apply_mic, determine_rcut
+from easymap.utils import apply_mic, determine_rcut, expand_xyz, get_entropy
 
 
 class Mapping:
@@ -58,8 +58,8 @@ class Mapping:
 
         For periodic systems, clusters are not allowed to contain relative
         vectors which are longer than half of the smallest diagonal box vector
-        component (in its reduced representation). A ValueError is raised if
-        this is the case.
+        component in its reduced representation (i.e. a_x, b_y, or c_z).
+        A ValueError is raised if this is the case.
 
         Parameters
         ----------
@@ -75,7 +75,9 @@ class Mapping:
         if rvecs is not None: # apply mic to dvecs
             apply_mic(dvecs, rvecs)
             rcut = determine_rcut(rvecs)
-            assert np.all(np.linalg.norm(dvecs, axis=1) < rcut)
+            if not np.all(np.linalg.norm(dvecs, axis=1) < rcut):
+                raise ValueError('Maximum allowed size of distance vectors'
+                        ' was exceeded (rcut = {}).'.format(rcut))
         positions_com = np.zeros((self.nclusters, 3))
         for i, group in enumerate(self):
             positions_com[i, :] = positions[group[0], :].copy()
@@ -208,6 +210,109 @@ class Mapping:
         mapping.update_identities(validate=True)
         return mapping
 
+    def write(self, filename=None):
+        """Saves all information of a mapping object to a .npz archive"""
+        # prepare masses, equivalencies, and current clusters arrays
+        masses = self.masses
+        equivalencies = np.zeros((self.natoms, self.natoms), dtype=np.int32)
+        for i in range(self.natoms):
+            equivalencies[self.atom_types[i], i] = 1
+        clusters = self.clusters
+        if filename is not None:
+            np.savez(
+                    filename,
+                    masses=masses,
+                    equivalencies=equivalencies,
+                    clusters=clusters,
+                    )
+        return masses, equivalencies, clusters
 
-def score(reductions, mapping, harmonic):
+    @classmethod
+    def load(cls, filename):
+        data = np.load(filename)
+        mapping = cls(data['masses'], data['equivalencies'])
+        mapping.update_clusters(data['clusters'])
+        mapping.update_identities()
+        return mapping
+
+    def check_mic(self, positions, rvecs, translate_atoms=True):
+        """Verifies whether clusters are sufficiently small as to apply the mic
+
+        For each cluster, the largest relative vector between member atoms is
+        determined and compared with the allowed cutoff of the unit cell.
+
+        Parameters
+        ----------
+
+        positions : 2darray of shape (natom, 3) [angstrom]
+            atomic positions.
+
+        rvecs : 2darray of shape (3, 3) [angstrom]
+            box vectors of the configuration
+
+        translate_atoms : bool
+            determines whether to translate atoms such that individual
+            clusters do not require the box vectors for the computation of their
+            center of mass.
+
+        """
+        rcut = determine_rcut(rvecs)
+        for group in self:
+            n = len(group)
+            if n > 1:
+                r = group[0] # take random central atom as reference
+                deltas = np.zeros((n, self.natoms))
+                for i in range(n):
+                    deltas[i, r] -= 1
+                    deltas[i, group[i]] += 1 # becomes zero for index == r
+                dvecs = deltas @ positions
+                apply_mic(dvecs, rvecs)
+                group_pos = np.zeros((n, 3)) # construct pos with dvecs
+                group_pos = positions[r, :].reshape((1, 3)) + dvecs
+                if translate_atoms:
+                    positions[group, :] = group_pos[:]
+                # iterate over all relative vectors
+                for k in range(n):
+                    for l in range(n):
+                        d = np.linalg.norm(group_pos[k, :] - group_pos[l, :])
+                        if d > rcut:
+                            return False
+        return True
+
+    def sort_by_cluster_type(self):
+        """Sorts cluster definitions by type"""
+        sorting = sorted(range(self.nclusters), key=lambda x: self.cluster_types[x])
+
+
+def score(mapping, hessian_mw=None, harmonic=None, temperature=300):
     """Scores a list of reductions based on a mapping and a harmonic"""
+    mapping_matrix = np.zeros((mapping.nclusters, mapping.natoms))
+    for i, group in enumerate(mapping):
+        mapping_matrix[i, group] = mapping.masses[group]
+    mapping_matrix /= np.sum(mapping_matrix, axis=1, keepdims=True)
+    mapping_matrix = np.sqrt(mapping_matrix)
+
+    if harmonic is not None: # compute mass-weighted hessian
+        masses = np.repeat(harmonic.atoms.get_masses(), 3)
+        mass_matrix = 1 / np.sqrt(np.outer(masses, masses))
+        hessian_mw = mass_matrix * harmonic.hessian
+    else: # mass-weighted hessian already computed
+        assert hessian_mw is not None
+
+    # apply SVD to generate orthonormal basis in null space of M
+    _, sigmas, VT = np.linalg.svd(mapping_matrix)
+    assert np.allclose(sigmas, np.ones(len(sigmas)))
+    basis = np.transpose(expand_xyz(VT[mapping.nclusters:, :]))
+
+    # obtain hessian in null space of mapping and compute eigenvalues
+    hessian_null = basis.T @ hessian_mw @ basis
+    omegas = np.linalg.eigvals(hessian_null)
+    frequencies = np.sqrt(omegas[omegas > 0]) / (2 * np.pi)
+    entropy, _ = get_entropy(
+            frequencies,
+            temperature,
+            use_quantum=True,
+            remove_zero=True,
+            )
+    smap = np.sum(entropy)
+    return smap

@@ -15,8 +15,7 @@ def test_init():
 def test_frequencies():
     name = 'uio66_ff'
     harmonic, _ = get_harmonic(name)
-    values, _ = harmonic.compute_eigenmodes()
-    frequencies = np.sqrt(values) / (2 * np.pi)
+    frequencies, _ = harmonic.compute_eigenmodes()
     entropy, _ = get_entropy(frequencies, 300)
     assert np.isclose(np.sum(entropy), 5.328, atol=1e-3) # reference value
 

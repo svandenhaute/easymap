@@ -1,6 +1,7 @@
 import numpy as np
 
-from easymap.utils import apply_mic, compute_distance_matrix, get_nlist
+from easymap.utils import apply_mic, compute_distance_matrix, get_nlist, \
+        expand_xyz
 
 
 def test_mic():
@@ -46,3 +47,19 @@ def test_get_nlist():
         indices, offsets = nlist.get_neighbors(i)
         for index in indices:
             assert np.linalg.norm(positions[i, :] - positions[index, :]) < cutoff
+
+
+def test_expand_xyz():
+    a = np.array([[1, 4, 0], [0, 0, 7], [0, 0, 0]])
+    b = np.array([
+        [1, 0, 0, 4, 0, 0, 0, 0, 0],
+        [0, 1, 0, 0, 4, 0, 0, 0, 0],
+        [0, 0, 1, 0, 0, 4, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 7, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 7, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 7],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        [0, 0, 0, 0, 0, 0, 0, 0, 0],
+        ])
+    assert np.allclose(b, expand_xyz(a))

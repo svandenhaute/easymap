@@ -143,6 +143,12 @@ def generate_reductions(mapping, harmonic, cutoff, tol,
                 templates.pop(i)
             else:
                 i += 1
+        logger.debug('')
+        logger.debug('\tgenerating reductions for cluster type {}'
+                ' ({} environments)'.format(cluster_type, len(envs)))
+        logger.debug('\t\tfound {} templates which may be uniquely matched'.format(
+            len(templates)))
+        nreductions = 0
         for template in templates: # match with every env
             groups = []
             for env in envs:
@@ -152,6 +158,10 @@ def generate_reductions(mapping, harmonic, cutoff, tol,
                 groups.append(matches[0])
             try:
                 reductions.append(Reduction(groups))
+                nreductions += 1
+                logger.debug('\t\t\tgenerated reduction that joins clusters:')
+                logger.debug('\t\t\t' + str([mapping.cluster_types[i] for i in template.indices]))
             except ValueError: # groups were not disjunct; discard template
                 continue
+        logger.debug('\t\tresulting in {} reductions'.format(nreductions))
     return reductions

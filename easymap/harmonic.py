@@ -26,18 +26,20 @@ class Harmonic:
         assert hessian.shape == (self.ndof, self.ndof)
         assert np.allclose(hessian, hessian.T)
         self.hessian = hessian
-        self.frequencies = None
+        self.omegas = None
         self.modes = None
 
     def compute_eigenmodes(self):
         """Computes and stores the eigenmodes of the system
 
         The eigenmodes are computed as the eigenvectors of the mass-weighted
-        hessian, whose eigenvalues are the corresponding eigenfrequencies.
+        hessian, whose eigenvalues are the corresponding eigenvalues.
 
         """
         masses = np.repeat(self.atoms.get_masses(), 3)
         mass_matrix = 1 / np.sqrt(np.outer(masses, masses))
         hessian_mw = mass_matrix * self.hessian
-        self.frequencies, self.modes = np.linalg.eigh(hessian_mw)
-        return self.frequencies, self.modes
+        self.omegas, self.modes = np.linalg.eigh(hessian_mw)
+        # sometimes eigenvalues are small but negative, so take abs before sqrt
+        frequencies = np.sqrt(np.abs(self.omegas)) / (2 * np.pi)
+        return frequencies, self.modes
